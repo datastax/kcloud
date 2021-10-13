@@ -21,14 +21,39 @@ type awsUpdateOp struct {
 	cluster string
 }
 
-var awsRegions = []string{
-	"us-east-1",
-	"us-east-2",
-	"us-west-2",
+var awsRegions = map[string]bool{
+	"us-east-1": true,
+	"us-east-2": true,
+	"us-west-2": true,
 }
 
 // awsClusterSep is a separator used for the aws region and cluster name
 const awsClusterSep = "/"
+
+const awsCmd = "aws"
+
+// parseAWSArgs expects at least one argument which is the AWS profile to use.
+// If additional args are provided, tries to interpret them as the region and cluster name.
+func parseAWSArgs(args []string) Op {
+	switch len(args) {
+	case 0:
+		return ErrorOp{fmt.Errorf("must specify aws profile name when using aws provider")}
+	case 1:
+		return awsListOp{
+			profile: args[0],
+		}
+	default:
+		region, cluster, err := parseQualifierCluster(args[1:])
+		if err != nil {
+			return ErrorOp{err}
+		}
+		return awsUpdateOp{
+			profile: args[0],
+			region:  region,
+			cluster: cluster,
+		}
+	}
+}
 
 // Run lists the clusters available to the given profile in the known regions.
 // runs the 'aws eks list-clusters' command once for each region in parallel
@@ -36,7 +61,7 @@ func (aws awsListOp) Run(stdout, stderr io.Writer) error {
 	clusters := []string{}
 	wg := sync.WaitGroup{}
 	var groupErr error
-	for _, region := range awsRegions {
+	for region := range awsRegions {
 		// TODO: could these calls be made in parallel?
 		wg.Add(1)
 		go func(profile, region string) {
@@ -63,6 +88,9 @@ func (aws awsListOp) Run(stdout, stderr io.Writer) error {
 
 // Run updates the kubeconfig file for the given region and cluster.
 func (aws awsUpdateOp) Run(stdout, stderr io.Writer) error {
+	if !awsRegions[aws.region] {
+		fmt.Printf("warning: unrecognized region %v\n", aws.region)
+	}
 	cmd := exec.Command("aws", "--profile", aws.profile, "eks", "--region", aws.region, "update-kubeconfig", "--name", aws.cluster)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

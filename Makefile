@@ -11,5 +11,3 @@ install:
 
 test:
 	go test ./...
-
-

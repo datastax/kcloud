@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func usage() {
@@ -21,36 +20,6 @@ func (op ErrorOp) Run(_, _ io.Writer) error {
 	return op.Err
 }
 
-// parseAWSArgs expects at least one argument which is the AWS profile to use.
-// If additional args are provided, tries to interpret them as the region and cluster name.
-func parseAWSArgs(args []string) Op {
-	switch len(args) {
-	case 0:
-		fmt.Println("must specify aws profile name")
-		return ErrorOp{fmt.Errorf("must specify aws profile name when using aws provider")}
-	case 1:
-		return awsListOp{
-			profile: args[0],
-		}
-	case 2:
-		regionCluster := strings.Split(args[1], awsClusterSep)
-		if len(regionCluster) < 2 {
-			fmt.Printf("invlid cluster specifier '%v', must be in the form region%vclusterName", args[1], awsClusterSep)
-		}
-		return awsUpdateOp{
-			profile: args[0],
-			region:  regionCluster[0],
-			cluster: regionCluster[1],
-		}
-	default:
-		return awsUpdateOp{
-			profile: args[0],
-			region:  args[1],
-			cluster: args[2],
-		}
-	}
-}
-
 func parseArgs(args []string) Op {
 	if len(args) < 2 {
 		usage()
@@ -64,9 +33,9 @@ func parseArgs(args []string) Op {
 	case "aws", "amazon":
 		return parseAWSArgs(args[1:])
 	case "azr", "azure":
-		fmt.Println("azure is not yet implmented")
+		return parseAzureArgs(args[1:])
 	case "gcp", "google":
-		fmt.Println("gcp is not yet implemented")
+		return parseGCPArgs(args[1:])
 	default:
 		fmt.Printf("unrecognized cloud provider: %s\n", provider)
 		os.Exit(1)
@@ -82,8 +51,7 @@ func main() {
 	op := parseArgs(os.Args[1:])
 
 	if err := op.Run(os.Stdin, os.Stderr); err != nil {
-		fmt.Println("run returned an error")
-		fmt.Println(err.Error())
+		fmt.Println("unable to process command: ", err.Error())
 		os.Exit(1)
 	}
 }
