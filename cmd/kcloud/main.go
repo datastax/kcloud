@@ -10,7 +10,7 @@ import (
 func usage() {
 	cmd := filepath.Base(os.Args[0])
 	fmt.Printf("%s - retrieve kubernetes configuration from cloud providers\n", cmd)
-	fmt.Printf("Usage: %s [options] aws|azr|gcp account [cluster-name]\n", cmd)
+	fmt.Printf("Usage: %s [options] aws|azr|gcp [account] [cluster-name]\n", cmd)
 }
 
 // ErrorOp indicates an unexpected error.
@@ -21,10 +21,6 @@ func (op ErrorOp) Run(_, _ io.Writer) error {
 }
 
 func parseArgs(args []string) Op {
-	if len(args) < 2 {
-		usage()
-		os.Exit(1)
-	}
 	provider := args[0]
 	switch provider {
 	case "-h", "--help":

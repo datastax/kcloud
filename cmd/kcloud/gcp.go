@@ -1,15 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"io"
-	"os/exec"
-	"strings"
 )
 
 const gcpCmd = "gcloud"
 
-type gcpListOp struct {
+type gcpListProjectsOp struct{}
+
+type gcpListClustersOp struct {
 	project string
 }
 
@@ -23,9 +22,9 @@ type gcpUpdateOp struct {
 func parseGCPArgs(args []string) Op {
 	switch len(args) {
 	case 0:
-		return ErrorOp{fmt.Errorf("must specify gcp project name when using gcp cloud provider")}
+		return gcpListProjectsOp{}
 	case 1:
-		return gcpListOp{
+		return gcpListClustersOp{
 			project: args[0],
 		}
 	default:
@@ -41,46 +40,18 @@ func parseGCPArgs(args []string) Op {
 	}
 }
 
+// Run lists the projects available to the current user
+func (gcp gcpListProjectsOp) Run(stdout, stderr io.Writer) error {
+	return RunCommand(gcpCmd, "projects", "list", "--format=value(projectId)")
+}
+
 // Run lists the clusters available in the given project.
 // runs the 'gcloud container clusters list' command
-func (gcp gcpListOp) Run(stdout, stderr io.Writer) error {
-	cmd := exec.Command(gcpCmd, "--project", gcp.project, "container", "clusters", "list")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println("failed command: ", cmd)
-		fmt.Print(string(output))
-		return fmt.Errorf("failed to build aws command: %w", err)
-	}
-	clusters := parseGCPClusterList(output)
-	for _, c := range clusters {
-		fmt.Println(c)
-	}
-	return nil
+func (gcp gcpListClustersOp) Run(stdout, stderr io.Writer) error {
+	return RunCommand(gcpCmd, "--project", gcp.project, "container", "clusters", "list", "--format=value[separator=/](location,name)")
 }
 
 // Run updates the kubeconfig file for the given region and cluster.
 func (gcp gcpUpdateOp) Run(stdout, stderr io.Writer) error {
-	cmd := exec.Command(gcpCmd, "--project", gcp.project, "container", "clusters", "get-credentials", gcp.cluster, "--region", gcp.region)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println("failed command: ", cmd)
-		fmt.Print(string(output))
-		return fmt.Errorf("failed to build aws command: %w", err)
-	}
-	fmt.Println(string(output))
-	return nil
-}
-
-func parseGCPClusterList(cmdOutput []byte) []string {
-	clusters := []string{}
-	for _, line := range strings.Split(string(cmdOutput), "\n") {
-		if strings.HasPrefix(line, "NAME") {
-			continue
-		} else if strings.TrimSpace(line) == "" {
-			break
-		}
-		parts := strings.Fields(line)
-		clusters = append(clusters, parts[1]+clusterNameSep+parts[0])
-	}
-	return clusters
+	return RunCommand(gcpCmd, "--project", gcp.project, "container", "clusters", "get-credentials", gcp.cluster, "--region", gcp.region)
 }

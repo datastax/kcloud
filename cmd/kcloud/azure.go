@@ -9,11 +9,13 @@ import (
 
 const azureCmd = "az"
 
-type azureListOp struct {
+type azureListSubscriptionsOp struct{}
+
+type azureListClustersOp struct {
 	subscription string
 }
 
-type azureUpdateOp struct {
+type azureUpdateConfigOp struct {
 	subscription  string
 	resourceGroup string
 	cluster       string
@@ -46,9 +48,9 @@ func lookupSubscriptionID(subscription string) string {
 func parseAzureArgs(args []string) Op {
 	switch len(args) {
 	case 0:
-		return ErrorOp{fmt.Errorf("must specify azure subscription name when using azure cloud provider")}
+		return azureListSubscriptionsOp{}
 	case 1:
-		return azureListOp{
+		return azureListClustersOp{
 			subscription: args[0],
 		}
 	default:
@@ -56,7 +58,7 @@ func parseAzureArgs(args []string) Op {
 		if err != nil {
 			return ErrorOp{err}
 		}
-		return azureUpdateOp{
+		return azureUpdateConfigOp{
 			subscription:  args[0],
 			resourceGroup: resourceGroup,
 			cluster:       cluster,
@@ -64,47 +66,44 @@ func parseAzureArgs(args []string) Op {
 	}
 }
 
-// Run lists the clusters available in the given project.
+type AzureSubscription struct {
+	Name string
+	Id   string
+}
+
+// Run lists the subscriptions available to the user.
 // runs the 'gcloud container clusters list' command
-func (azr azureListOp) Run(stdout, stderr io.Writer) error {
+func (azr azureListSubscriptionsOp) Run(stdout, stderr io.Writer) error {
+	return RunCommand(azureCmd, "account", "list", "--query", "[].{id: id, name: name}", "--out", "tsv")
+}
+
+// Run lists the clusters available in the given subscription.
+// runs the 'az aks list' command
+func (azr azureListClustersOp) Run(stdout, stderr io.Writer) error {
 	cmd := exec.Command(azureCmd, "aks", "list", "--subscription", lookupSubscriptionID(azr.subscription), "--query", "[].{name: name, resourceGroup: resourceGroup}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("failed command: ", cmd)
 		fmt.Print(string(output))
-		return fmt.Errorf("failed to run az account set command: %w", err)
+		return err
 	}
-	//fmt.Println("command: ", cmd)
-	clusters, _ := parseAzureClusterList(output)
-	for _, c := range clusters {
+	clusterList := []azureCluster{}
+	if err := json.Unmarshal(output, &clusterList); err != nil {
+		return err
+	}
+	for _, c := range clusterList {
 		fmt.Println(c.ResourceGroup + clusterNameSep + c.Name)
 	}
 	return nil
 }
 
 // Run updates the kubeconfig file for the given region and cluster.
-func (azr azureUpdateOp) Run(stdout, stderr io.Writer) error {
-	cmd := exec.Command(azureCmd, "aks", "get-credentials", "--overwrite-existing", "--subscription", lookupSubscriptionID(azr.subscription),
+func (azr azureUpdateConfigOp) Run(stdout, stderr io.Writer) error {
+	return RunCommand(azureCmd, "aks", "get-credentials", "--overwrite-existing", "--subscription", lookupSubscriptionID(azr.subscription),
 		"--resource-group", azr.resourceGroup, "--name", azr.cluster)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println("failed command: ", cmd)
-		fmt.Print(string(output))
-		return fmt.Errorf("failed to run az account set command: %w", err)
-	}
-	fmt.Println(string(output))
-	return nil
 }
 
 type azureCluster struct {
 	Name          string
 	ResourceGroup string
-}
-
-func parseAzureClusterList(cmdOutput []byte) ([]azureCluster, error) {
-	clusterList := []azureCluster{}
-	if err := json.Unmarshal(cmdOutput, &clusterList); err != nil {
-		return nil, err
-	}
-	return clusterList, nil
 }
