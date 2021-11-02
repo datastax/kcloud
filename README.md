@@ -1,5 +1,6 @@
 # kcloud
-CLI tool to download kube config settings from various cloud providers.
+CLI tool to download kube config settings from various cloud providers.  Requires local installation
+of aws, az, and/or gcloud commands to access the cloud providers.
 
 ## Usage
 
