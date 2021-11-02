@@ -44,6 +44,12 @@ type Op interface {
 }
 
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("missing required cloud provider")
+		usage()
+		os.Exit(1)
+	}
+
 	op := parseArgs(os.Args[1:])
 
 	if err := op.Run(os.Stdin, os.Stderr); err != nil {
