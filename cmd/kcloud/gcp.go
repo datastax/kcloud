@@ -1,57 +1,31 @@
 package main
 
 import (
-	"io"
+	"github.com/alecthomas/kong"
 )
 
 const gcpCmd = "gcloud"
 
-type gcpListProjectsOp struct{}
-
-type gcpListClustersOp struct {
-	project string
+type GCPCmd struct {
+	Project struct {
+		Project string `arg:"" optional:""`
+		Cluster struct {
+			Cluster []string `arg:"" optional:"" name:"region/cluster"`
+		} `arg:"" name:"region/cluster"`
+	} `arg:""`
 }
 
-type gcpUpdateOp struct {
-	project string
-	region  string
-	cluster string
-}
-
-// parseGCPArgs expects at least one argument which is the GCP project to use.
-func parseGCPArgs(args []string) Op {
-	switch len(args) {
-	case 0:
-		return gcpListProjectsOp{}
-	case 1:
-		return gcpListClustersOp{
-			project: args[0],
-		}
-	default:
-		region, cluster, err := parseQualifierCluster(args[1:])
-		if err != nil {
-			return ErrorOp{err}
-		}
-		return gcpUpdateOp{
-			project: args[0],
-			region:  region,
-			cluster: cluster,
-		}
+func (gcp *GCPCmd) Run(ctx *kong.Context) error {
+	if gcp.Project.Project == "" {
+		return RunCommand(gcpCmd, "projects", "list", "--format=value(projectId)")
 	}
-}
-
-// Run lists the projects available to the current user
-func (gcp gcpListProjectsOp) Run(stdout, stderr io.Writer) error {
-	return RunCommand(gcpCmd, "projects", "list", "--format=value(projectId)")
-}
-
-// Run lists the clusters available in the given project.
-// runs the 'gcloud container clusters list' command
-func (gcp gcpListClustersOp) Run(stdout, stderr io.Writer) error {
-	return RunCommand(gcpCmd, "--project", gcp.project, "container", "clusters", "list", "--format=value[separator=/](location,name)")
-}
-
-// Run updates the kubeconfig file for the given region and cluster.
-func (gcp gcpUpdateOp) Run(stdout, stderr io.Writer) error {
-	return RunCommand(gcpCmd, "--project", gcp.project, "container", "clusters", "get-credentials", gcp.cluster, "--region", gcp.region)
+	if len(gcp.Project.Cluster.Cluster) == 0 {
+		const formatString = "--format=value[separator=" + clusterNameSep + "](location,name)"
+		return RunCommand(gcpCmd, "--project", gcp.Project.Project, "container", "clusters", "list", formatString)
+	}
+	region, cluster, err := parseQualifierCluster(gcp.Project.Cluster.Cluster)
+	if err != nil {
+		return err
+	}
+	return RunCommand(gcpCmd, "--project", gcp.Project.Project, "container", "clusters", "get-credentials", "--region", region, cluster)
 }
