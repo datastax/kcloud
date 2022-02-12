@@ -1,23 +1,44 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
+
+	"github.com/alecthomas/kong"
 )
 
-type awsListProfilesOp struct{}
-
-type awsListClustersOp struct {
-	profile string
+type AWSCmd struct {
+	Profile struct {
+		Profile string `arg:"" optional:""`
+		Cluster struct {
+			Cluster []string `arg:"" optional:"" name:"region/cluster"`
+		} `arg:"" name:"region/cluster"`
+	} `arg:""`
 }
 
-type awsUpdateOp struct {
-	profile string
-	region  string
-	cluster string
+func (aws *AWSCmd) Run(ctx *kong.Context) error {
+	if aws.Profile.Profile == "" {
+		return AWSListProfiles()
+	}
+	if len(aws.Profile.Cluster.Cluster) == 0 {
+		return aws.AWSListClusters()
+	}
+	region, cluster, err := parseQualifierCluster(aws.Profile.Cluster.Cluster)
+	if err != nil {
+		return err
+	}
+	if !awsRegions[region] {
+		fmt.Printf("warning: unrecognized region %v\n", region)
+	}
+	return RunCommand(awsCmd, "--profile", aws.Profile.Profile, "eks", "--region", region,
+		"update-kubeconfig", "--name", cluster)
+
 }
 
 var awsRegions = map[string]bool{
@@ -28,32 +49,9 @@ var awsRegions = map[string]bool{
 
 const awsCmd = "aws"
 
-// parseAWSArgs expects at least one argument which is the AWS profile to use.
-// If additional args are provided, tries to interpret them as the region and cluster name.
-func parseAWSArgs(args []string) Op {
-	switch len(args) {
-	case 0:
-		return awsListProfilesOp{}
-	case 1:
-		return awsListClustersOp{
-			profile: args[0],
-		}
-	default:
-		region, cluster, err := parseQualifierCluster(args[1:])
-		if err != nil {
-			return ErrorOp{err}
-		}
-		return awsUpdateOp{
-			profile: args[0],
-			region:  region,
-			cluster: cluster,
-		}
-	}
-}
-
-// Run lists the available profiles
-func (aws awsListProfilesOp) Run(stdout, stderr io.Writer) error {
-	profiles, err := awsListAvailableProfiles(DefaultAWSCredsFilePath())
+// AWSListProfiles lists the available profiles
+func AWSListProfiles() error {
+	profiles, err := awsListAvailableProfiles(DefaultAWSConfigFilePath())
 	if err != nil {
 		return fmt.Errorf("unable to parse AWS credentials: %w", err)
 	}
@@ -63,9 +61,9 @@ func (aws awsListProfilesOp) Run(stdout, stderr io.Writer) error {
 	return nil
 }
 
-// Run lists the clusters available to the given profile in the known regions.
+// AWSListClusters lists the clusters available to the given profile in the known regions.
 // runs the 'aws eks list-clusters' command once for each region in parallel
-func (aws awsListClustersOp) Run(stdout, stderr io.Writer) error {
+func (aws *AWSCmd) AWSListClusters() error {
 	clusters := []string{}
 	wg := sync.WaitGroup{}
 	var groupErr error
@@ -81,7 +79,7 @@ func (aws awsListClustersOp) Run(stdout, stderr io.Writer) error {
 			for _, c := range regionClusters {
 				clusters = append(clusters, region+clusterNameSep+c)
 			}
-		}(aws.profile, region)
+		}(aws.Profile.Profile, region)
 	}
 	wg.Wait()
 	if groupErr != nil {
@@ -91,20 +89,6 @@ func (aws awsListClustersOp) Run(stdout, stderr io.Writer) error {
 		fmt.Println(c)
 	}
 	return nil
-}
-
-// Run updates the kubeconfig file for the given region and cluster.
-func (aws awsUpdateOp) Run(stdout, stderr io.Writer) error {
-	if !awsRegions[aws.region] {
-		fmt.Printf("warning: unrecognized region %v\n", aws.region)
-	}
-	return RunCommand(awsCmd, "--profile", aws.profile, "eks", "--region", aws.region, "update-kubeconfig", "--name", aws.cluster)
-}
-
-type awsCreds struct {
-	profile         string
-	accessKeyID     string
-	secretAccessKey string
 }
 
 func awsListClustersInRegion(profile string, region string) ([]string, error) {
@@ -129,4 +113,28 @@ func awsParseClusterList(awsCmdOut []byte) ([]string, error) {
 		return nil, err
 	}
 	return clusterList.Clusters, nil
+}
+
+func DefaultAWSConfigFilePath() string {
+	const awsDefaultConfigPath = ".aws/config"
+	homedir, _ := os.UserHomeDir()
+	return filepath.Join(homedir, awsDefaultConfigPath)
+}
+
+func awsListAvailableProfiles(configFile string) ([]string, error) {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open AWS creds file '%s': %w", configFile, err)
+	}
+	profiles := []string{}
+	scanner := bufio.NewScanner(f)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "[") {
+			profile := strings.TrimRight(strings.TrimLeft(line, "["), "]")
+			profiles = append(profiles, profile)
+		}
+	}
+	return profiles, nil
 }
