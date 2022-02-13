@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -34,9 +33,9 @@ func (aws *AWSCmd) Run(ctx *kong.Context) error {
 		return err
 	}
 	if !awsRegions[region] {
-		fmt.Printf("warning: unrecognized region %v\n", region)
+		fmt.Printf("WARNING: unrecognized region %v\n", region)
 	}
-	return RunCommand(awsCmd, "--profile", aws.Profile.Profile, "eks", "--region", region,
+	return RunCommandAndPrint(awsCmd, "--profile", aws.Profile.Profile, "eks", "--region", region,
 		"update-kubeconfig", "--name", cluster)
 
 }
@@ -92,14 +91,12 @@ func (aws *AWSCmd) AWSListClusters() error {
 }
 
 func awsListClustersInRegion(profile string, region string) ([]string, error) {
-	cmd := exec.Command(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters")
-	output, err := cmd.CombinedOutput()
+	output, err := RunCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters")
 	if err != nil {
-		fmt.Println("failed command: ", cmd)
 		fmt.Print(string(output))
+		fmt.Println("ERROR: failed command: ", QuoteCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters"))
 		return nil, fmt.Errorf("failed to build aws command: %w", err)
 	}
-
 	return awsParseClusterList(output)
 }
 

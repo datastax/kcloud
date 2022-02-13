@@ -8,13 +8,13 @@ import (
 func TestRunCommand(t *testing.T) {
 	var err error
 	fooCmd := "foo"
-	err = RunCommand(fooCmd)
+	err = RunCommandAndPrint(fooCmd)
 	if err == nil {
 		t.Fatal("expected foo to fail but it succeeded")
 	}
 
 	emptyCmd := "   "
-	err = RunCommand(emptyCmd)
+	err = RunCommandAndPrint(emptyCmd)
 	if err == nil {
 		t.Fatal("expected foo to fail but it succeeded")
 	}
@@ -23,7 +23,7 @@ func TestRunCommand(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		gcloudCmd = "dir"
 	}
-	err = RunCommand(gcloudCmd)
+	err = RunCommandAndPrint(gcloudCmd)
 	if err != nil {
 		t.Fatal(err)
 	}

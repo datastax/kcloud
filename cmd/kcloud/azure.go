@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os/exec"
 
 	"github.com/alecthomas/kong"
 )
@@ -22,7 +21,7 @@ type AzureCmd struct {
 
 func (azr *AzureCmd) Run(ctx *kong.Context) error {
 	if azr.Subscription.Subscription == "" {
-		return RunCommand(azureCmd, "account", "list", "--query", "[].{id: id, name: name}", "--out", "tsv")
+		return RunCommandAndPrint(azureCmd, "account", "list", "--query", "[].{id: id, name: name}", "--out", "tsv")
 	}
 	if len(azr.Subscription.Cluster.Cluster) == 0 {
 		return AzureListClusters(ctx.Stdout, ctx.Stderr, azr.Subscription.Subscription)
@@ -31,7 +30,7 @@ func (azr *AzureCmd) Run(ctx *kong.Context) error {
 	if err != nil {
 		return err
 	}
-	return RunCommand(azureCmd, "aks", "get-credentials", "--overwrite-existing", "--subscription",
+	return RunCommandAndPrint(azureCmd, "aks", "get-credentials", "--overwrite-existing", "--subscription",
 		azr.Subscription.Subscription, "--resource-group", resourceGroup, "--name", cluster)
 }
 
@@ -46,15 +45,16 @@ func AzureListClusters(stdout, stderr io.Writer, subscription string) error {
 	args := []string{
 		"aks", "list", "--subscription", subscription, "--query", "[].{name: name, resourceGroup: resourceGroup}",
 	}
-	cmd := exec.Command(azureCmd, args...)
-	if cli.Verbose {
-		PrintCommand(azureCmd, cmd.Args...)
-	}
-	output, err := cmd.CombinedOutput()
+	output, err := RunCommand(azureCmd, args...)
 	if err != nil {
-		fmt.Println("failed command: ", cmd)
 		fmt.Print(string(output))
+		fmt.Println("ERROR: failed to run command: ", QuoteCommand(awsCmd, args...))
 		return err
+	}
+	if cli.Verbose {
+		fmt.Println("DEBUG: raw command output")
+		fmt.Print(string(output))
+		fmt.Println("DEBUG: end raw command output")
 	}
 	clusterList := []azureCluster{}
 	if err := json.Unmarshal(output, &clusterList); err != nil {
