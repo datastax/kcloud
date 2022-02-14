@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -23,7 +24,7 @@ type AWSCmd struct {
 
 func (aws *AWSCmd) Run(ctx *kong.Context) error {
 	if aws.Profile.Profile == "" {
-		return AWSListProfiles()
+		return AWSPrintConfigProfiles()
 	}
 	if len(aws.Profile.Cluster.Cluster) == 0 {
 		return aws.AWSListClusters()
@@ -32,7 +33,7 @@ func (aws *AWSCmd) Run(ctx *kong.Context) error {
 	if err != nil {
 		return err
 	}
-	if !awsRegions[region] {
+	if _, ok := awsKnownRegions[region]; !ok {
 		fmt.Printf("WARNING: unrecognized region %v\n", region)
 	}
 	return RunCommandAndPrint(awsCmd, "--profile", aws.Profile.Profile, "eks", "--region", region,
@@ -40,21 +41,44 @@ func (aws *AWSCmd) Run(ctx *kong.Context) error {
 
 }
 
-var awsRegions = map[string]bool{
-	"us-east-1": true,
-	"us-east-2": true,
-	"us-west-2": true,
+// awsKnownRegions as defined in the AWS docs
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+var awsKnownRegions = map[string]struct{}{
+	"us-east-2":      {},
+	"us-east-1":      {},
+	"us-west-1":      {},
+	"us-west-2":      {},
+	"af-south-1":     {},
+	"ap-east-1":      {},
+	"ap-southeast-3": {},
+	"ap-south-1":     {},
+	"ap-northeast-3": {},
+	"ap-northeast-2": {},
+	"ap-southeast-1": {},
+	"ap-southeast-2": {},
+	"ap-northeast-1": {},
+	"ca-central-1":   {},
+	"eu-central-1":   {},
+	"eu-west-1":      {},
+	"eu-west-2":      {},
+	"eu-south-1":     {},
+	"eu-west-3":      {},
+	"eu-north-1":     {},
+	"me-south-1":     {},
+	"sa-east-1":      {},
+	"us-gov-east-1":  {},
+	"us-gov-west-1":  {},
 }
 
 const awsCmd = "aws"
 
-// AWSListProfiles lists the available profiles
-func AWSListProfiles() error {
-	profiles, err := awsListAvailableProfiles(DefaultAWSConfigFilePath())
+// AWSPrintConfigProfiles lists the available profiles
+func AWSPrintConfigProfiles() error {
+	config, err := awsLoadConfig(DefaultAWSConfigFilePath())
 	if err != nil {
 		return fmt.Errorf("unable to parse AWS credentials: %w", err)
 	}
-	for _, profile := range profiles {
+	for _, profile := range config.profiles {
 		fmt.Println(profile)
 	}
 	return nil
@@ -63,10 +87,14 @@ func AWSListProfiles() error {
 // AWSListClusters lists the clusters available to the given profile in the known regions.
 // runs the 'aws eks list-clusters' command once for each region in parallel
 func (aws *AWSCmd) AWSListClusters() error {
+	awsConfig, err := awsLoadConfig(DefaultAWSConfigFilePath())
+	if err != nil {
+		fmt.Println("ERROR: unable to load AWS config file: " + err.Error())
+	}
 	clusters := []string{}
 	wg := sync.WaitGroup{}
 	var groupErr error
-	for region := range awsRegions {
+	for region := range awsConfig.regions {
 		wg.Add(1)
 		go func(profile, region string) {
 			defer wg.Done()
@@ -100,6 +128,7 @@ func awsListClustersInRegion(profile string, region string) ([]string, error) {
 	return awsParseClusterList(output)
 }
 
+// awsClusterList is used for unmarshalling the aws command output
 type awsClusterList struct {
 	Clusters []string `json:"clusters"`
 }
@@ -118,20 +147,39 @@ func DefaultAWSConfigFilePath() string {
 	return filepath.Join(homedir, awsDefaultConfigPath)
 }
 
-func awsListAvailableProfiles(configFile string) ([]string, error) {
+// awsProfileRegex matches a line like "[myprofile]"
+var awsProfileRegex = regexp.MustCompile(`\[([^\]]+)\]`)
+
+// awsRegionRegex matches a line like "region = useast1"
+var awsRegionRegex = regexp.MustCompile(`region\s*=\s*(.+)`)
+
+type awsConfig struct {
+	profiles []string
+	regions  map[string]struct{}
+}
+
+func awsLoadConfig(configFile string) (awsConfig, error) {
 	f, err := os.Open(configFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open AWS creds file '%s': %w", configFile, err)
+		return awsConfig{}, fmt.Errorf("unable to open AWS creds file '%s': %w", configFile, err)
 	}
-	profiles := []string{}
-	scanner := bufio.NewScanner(f)
+	defer f.Close()
 
+	awsConfig := awsConfig{
+		profiles: []string{},
+		regions:  map[string]struct{}{},
+	}
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "[") {
-			profile := strings.TrimRight(strings.TrimLeft(line, "["), "]")
-			profiles = append(profiles, profile)
+		line := scanner.Text()
+		if match := awsProfileRegex.FindStringSubmatch(line); len(match) > 1 {
+			profile := strings.TrimSpace(match[1])
+			awsConfig.profiles = append(awsConfig.profiles, profile)
+		}
+		if match := awsRegionRegex.FindStringSubmatch(line); len(match) > 1 {
+			region := strings.TrimSpace(match[1])
+			awsConfig.regions[region] = struct{}{}
 		}
 	}
-	return profiles, nil
+	return awsConfig, nil
 }

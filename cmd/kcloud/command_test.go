@@ -19,11 +19,11 @@ func TestRunCommand(t *testing.T) {
 		t.Fatal("expected foo to fail but it succeeded")
 	}
 
-	gcloudCmd := "ls -l"
+	listCmd := "ls"
 	if runtime.GOOS == "windows" {
-		gcloudCmd = "dir"
+		listCmd = "dir"
 	}
-	err = RunCommandAndPrint(gcloudCmd)
+	err = RunCommandAndPrint(listCmd)
 	if err != nil {
 		t.Fatal(err)
 	}
