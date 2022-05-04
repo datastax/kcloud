@@ -1,10 +1,10 @@
-module github.com/pgier/kcloud
+module github.com/riptano/kcloud
 
 go 1.17
 
 require (
-	github.com/alecthomas/kong v0.4.0
-	github.com/stretchr/testify v1.7.0
+	github.com/alecthomas/kong v0.5.0
+	github.com/stretchr/testify v1.7.1
 )
 
 require (
