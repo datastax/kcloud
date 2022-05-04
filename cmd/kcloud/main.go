@@ -18,7 +18,7 @@ var cli struct {
 	Aws AWSCmd `cmd:"" help:"AWS provider" aliases:"amazon,aks"`
 }
 
-const description = "Download kubeconfig for various kubernetes cloud providers.\nExample: kcloud gcp my-dev-project us-east4/my-awesome-cluster"
+const description = "Download kubeconfig for various kubernetes cloud providers.\nExample: `kcloud gcp my-dev-project us-east4/my-awesome-cluster`"
 
 func main() {
 	ctx := kong.Parse(&cli,

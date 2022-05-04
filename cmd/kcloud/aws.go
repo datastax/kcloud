@@ -24,7 +24,7 @@ type AWSCmd struct {
 
 func (aws *AWSCmd) Run(ctx *kong.Context) error {
 	if aws.Profile.Profile == "" {
-		return AWSPrintConfigProfiles()
+		return AWSPrintConfigProfiles(DefaultAWSConfigFilePath())
 	}
 	if len(aws.Profile.Cluster.Cluster) == 0 {
 		return aws.AWSListClusters()
@@ -72,9 +72,9 @@ var awsKnownRegions = map[string]struct{}{
 
 const awsCmd = "aws"
 
-// AWSPrintConfigProfiles lists the available profiles
-func AWSPrintConfigProfiles() error {
-	config, err := awsLoadConfig(DefaultAWSConfigFilePath())
+// AWSPrintConfigProfiles lists the available profiles in the given config file
+func AWSPrintConfigProfiles(configFile string) error {
+	config, err := awsLoadConfig(configFile)
 	if err != nil {
 		return fmt.Errorf("unable to parse AWS credentials: %w", err)
 	}
