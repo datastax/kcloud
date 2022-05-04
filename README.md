@@ -1,6 +1,11 @@
 # kcloud
+
 CLI tool to download kube config settings from various cloud providers.  Requires local installation
 of aws, az, and/or gcloud commands to access the cloud providers.
+
+## Install
+
+    go install github.com/riptano/kcloud/cmd/kcloud@latest
 
 ## Usage
 
@@ -18,6 +23,6 @@ of aws, az, and/or gcloud commands to access the cloud providers.
 
     kcloud gcp my-project-dev us-east4/my-cluster
     
-## Build and Install
+## Build From Source
 
     make install

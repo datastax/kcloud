@@ -14,8 +14,8 @@ type AzureCmd struct {
 	Subscription struct {
 		Subscription string `arg:"" optional:""`
 		Cluster      struct {
-			Cluster []string `arg:"" optional:"" name:"region/cluster"`
-		} `arg:"" name:"region/cluster"`
+			Cluster []string `arg:"" optional:"" name:"resource-group/cluster"`
+		} `arg:"" name:"resource-group/cluster"`
 	} `arg:""`
 }
 
