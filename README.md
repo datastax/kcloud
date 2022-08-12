@@ -1,7 +1,12 @@
 # kcloud
 
-CLI tool to download kube config settings from various cloud providers.  Requires local installation
-of aws, az, and/or gcloud commands to access the cloud providers.
+This command provides a simplified CLI to download kubernetes config from various
+cloud providers.
+
+## Prerequisites
+
+A local installation of the cloud provider commands `aws`, `az`, and/or `gcloud` is required.  Before using
+`kcloud`, check that you can successfully run the relevant provider specific commands.
 
 ## Install
 
