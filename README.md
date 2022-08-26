@@ -14,20 +14,13 @@ A local installation of the cloud provider commands `aws`, `az`, and/or `gcloud`
 
 To install using this method, you must have the go compiler installed, and have `~/go/bin` in your PATH.
 
-    go install github.com/riptano/kcloud/cmd/kcloud@latest
-
-If you get an authentication error, you may need to configure token authentication for the riptano repos.
-This can be done by first creating a github token and then configuring your local git with a command
-similar to the following:
-
-    git config --global url."https://<my-token>:x-oauth-basic@github.com/".insteadOf "https://github.com/"
-
+    go install github.com/datastax/kcloud/cmd/kcloud@latest
 
 ### Option 2 - Download the binary
 
 The latest release binaries can be downloaded from the github releases page.
 
-    https://github.com/riptano/kcloud/releases
+    https://github.com/datastax/kcloud/releases
 
 ## Usage
 

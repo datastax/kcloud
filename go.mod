@@ -1,4 +1,4 @@
-module github.com/riptano/kcloud
+module github.com/datastax/kcloud
 
 go 1.17
 
