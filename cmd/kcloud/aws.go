@@ -76,7 +76,7 @@ const awsCmd = "aws"
 func AWSPrintConfigProfiles(configFile string) error {
 	config, err := awsLoadConfig(configFile)
 	if err != nil {
-		return fmt.Errorf("unable to parse AWS credentials: %w", err)
+		return fmt.Errorf("unable to parse AWS config file: %w", err)
 	}
 	for _, profile := range config.profiles {
 		fmt.Println(profile)
@@ -89,7 +89,7 @@ func AWSPrintConfigProfiles(configFile string) error {
 func (aws *AWSCmd) AWSListClusters() error {
 	awsConfig, err := awsLoadConfig(DefaultAWSConfigFilePath())
 	if err != nil {
-		fmt.Println("ERROR: unable to load AWS config file: " + err.Error())
+		return fmt.Errorf("ERROR: unable to load AWS config file: %w", err)
 	}
 	clusters := []string{}
 	wg := sync.WaitGroup{}
@@ -158,10 +158,10 @@ type awsConfig struct {
 	regions  map[string]struct{}
 }
 
-func awsLoadConfig(configFile string) (awsConfig, error) {
+func awsLoadConfig(configFile string) (*awsConfig, error) {
 	f, err := os.Open(configFile)
 	if err != nil {
-		return awsConfig{}, fmt.Errorf("unable to open AWS creds file '%s': %w", configFile, err)
+		return nil, fmt.Errorf("unable to open AWS creds file '%s': %w", configFile, err)
 	}
 	defer f.Close()
 
@@ -174,6 +174,9 @@ func awsLoadConfig(configFile string) (awsConfig, error) {
 		line := scanner.Text()
 		if match := awsProfileRegex.FindStringSubmatch(line); len(match) > 1 {
 			profile := strings.TrimSpace(match[1])
+			if stringInSlice(profile, awsConfig.profiles) {
+				return nil, fmt.Errorf("invalid aws config, found duplicate profile '%v'", profile)
+			}
 			awsConfig.profiles = append(awsConfig.profiles, profile)
 		}
 		if match := awsRegionRegex.FindStringSubmatch(line); len(match) > 1 {
@@ -181,5 +184,14 @@ func awsLoadConfig(configFile string) (awsConfig, error) {
 			awsConfig.regions[region] = struct{}{}
 		}
 	}
-	return awsConfig, nil
+	return &awsConfig, nil
+}
+
+func stringInSlice(s string, xs []string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
