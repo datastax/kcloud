@@ -92,7 +92,7 @@ func (aws *AWSCmd) AWSListClusters() error {
 	if !aws.AllRegions {
 		awsConfig, err := awsLoadConfig(DefaultAWSConfigFilePath())
 		if err != nil {
-			return fmt.Errorf("ERROR: unable to load AWS config file: %w", err)
+			return fmt.Errorf("error: unable to load AWS config file: %w", err)
 		}
 		regions = awsConfig.regions
 	}
