@@ -20,7 +20,8 @@ type AWSCmd struct {
 			Cluster []string `arg:"" optional:"" name:"region/cluster"`
 		} `arg:"" name:"region/cluster"`
 	} `arg:""`
-	AllRegions bool `short:"a" help:"Search all knows AWS regions instead of just regions found in ~/.aws/config"`
+	AllRegions bool   `short:"a" help:"Search all knows AWS regions instead of just regions found in ~/.aws/config"`
+	RoleARN    string `short:"r" help:"Include a role arn when updating kube config"`
 }
 
 func (aws *AWSCmd) Run(ctx *kong.Context) error {
@@ -35,10 +36,14 @@ func (aws *AWSCmd) Run(ctx *kong.Context) error {
 		return err
 	}
 	if _, ok := awsKnownRegions[region]; !ok {
-		fmt.Printf("WARNING: unrecognized region %v\n", region)
+		fmt.Printf("warning: unrecognized region argument '%s'\n", region)
 	}
-	return RunCommandAndPrint(awsCmd, "--profile", aws.Profile.Profile, "eks", "--region", region,
-		"update-kubeconfig", "--name", cluster)
+	args := []string{"--profile", aws.Profile.Profile, "eks", "--region", region,
+		"update-kubeconfig", "--name", cluster}
+	if strings.TrimSpace(aws.RoleARN) != "" {
+		args = append(args, "--role-arn", strings.TrimSpace(aws.RoleARN))
+	}
+	return RunCommandAndPrint(awsCmd, args...)
 
 }
 
@@ -120,10 +125,11 @@ func (aws *AWSCmd) AWSListClusters() error {
 }
 
 func awsListClustersInRegion(profile string, region string) ([]string, error) {
-	output, err := RunCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters")
+	args := []string{"--profile", profile, "eks", "--region", region, "list-clusters"}
+	output, err := RunCommand(awsCmd, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed command: %s\n  output: %s\n  err: %w",
-			QuoteCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters"),
+			QuoteCommand(awsCmd, args...),
 			strings.TrimSpace(string(output)),
 			err,
 		)
