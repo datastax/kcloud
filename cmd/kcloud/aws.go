@@ -104,7 +104,7 @@ func (aws *AWSCmd) AWSListClusters() error {
 			defer wg.Done()
 			regionClusters, err := awsListClustersInRegion(profile, region)
 			if err != nil {
-				fmt.Printf("failed to search region '%s': %s", region, err.Error())
+				fmt.Printf("error: failed to search region '%s':\n %s\n", region, err.Error())
 				return
 			}
 			for _, c := range regionClusters {
@@ -122,9 +122,11 @@ func (aws *AWSCmd) AWSListClusters() error {
 func awsListClustersInRegion(profile string, region string) ([]string, error) {
 	output, err := RunCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters")
 	if err != nil {
-		fmt.Print(string(output))
-		fmt.Println("ERROR: failed command: ", QuoteCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters"))
-		return nil, fmt.Errorf("failed to run aws command: %w", err)
+		return nil, fmt.Errorf("failed command: %s\n  output: %s\n  err: %w",
+			QuoteCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters"),
+			strings.TrimSpace(string(output)),
+			err,
+		)
 	}
 	return awsParseClusterList(output)
 }
@@ -152,7 +154,7 @@ func DefaultAWSConfigFilePath() string {
 var awsProfileRegex = regexp.MustCompile(`\[([^\]]+)\]`)
 
 // awsRegionRegex matches a line like "region = useast1"
-var awsRegionRegex = regexp.MustCompile(`region\s*=\s*(.+)`)
+var awsRegionRegex = regexp.MustCompile(`region\s*=\s*([\w-]+)`)
 
 type awsConfig struct {
 	profiles []string
@@ -182,6 +184,9 @@ func awsLoadConfig(configFile string) (*awsConfig, error) {
 		}
 		if match := awsRegionRegex.FindStringSubmatch(line); len(match) > 1 {
 			region := strings.TrimSpace(match[1])
+			if _, ok := awsKnownRegions[region]; !ok {
+				fmt.Printf("warning: unrecognized AWS region: '%s'\n", region)
+			}
 			awsConfig.regions[region] = struct{}{}
 		}
 	}

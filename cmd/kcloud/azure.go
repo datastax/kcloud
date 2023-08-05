@@ -48,13 +48,13 @@ func AzureListClusters(stdout, stderr io.Writer, subscription string) error {
 	output, err := RunCommand(azureCmd, args...)
 	if err != nil {
 		fmt.Print(string(output))
-		fmt.Println("ERROR: failed to run command: ", QuoteCommand(awsCmd, args...))
+		fmt.Println("error: failed to run command: ", QuoteCommand(awsCmd, args...))
 		return err
 	}
 	if cli.Verbose {
-		fmt.Println("DEBUG: raw command output")
+		fmt.Println("debug: raw command output")
 		fmt.Print(string(output))
-		fmt.Println("DEBUG: end raw command output")
+		fmt.Println("debug: end raw command output")
 	}
 	clusterList := []azureCluster{}
 	if err := json.Unmarshal(output, &clusterList); err != nil {

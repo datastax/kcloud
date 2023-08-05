@@ -10,7 +10,7 @@ import (
 // RunCommandAndPrint runs the given command and prints the output
 func RunCommandAndPrint(command string, args ...string) error {
 	if cli.Verbose {
-		fmt.Println(QuoteCommand(command, args...))
+		fmt.Println("debug: ", QuoteCommand(command, args...))
 	}
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
@@ -26,7 +26,7 @@ func RunCommandAndPrint(command string, args ...string) error {
 // combined stdout/stderr output
 func RunCommand(command string, args ...string) ([]byte, error) {
 	if cli.Verbose {
-		fmt.Println(QuoteCommand(command, args...))
+		fmt.Println("debug: ", QuoteCommand(command, args...))
 	}
 	cmd := exec.Command(command, args...)
 	return cmd.CombinedOutput()
@@ -35,7 +35,6 @@ func RunCommand(command string, args ...string) ([]byte, error) {
 // QuoteCommand writes the given command with quotes around the args for convenience
 func QuoteCommand(command string, args ...string) string {
 	var sb strings.Builder
-	sb.WriteString("DEBUG: " + command)
 	for _, arg := range args {
 		sb.WriteString(fmt.Sprintf(" \"%s\"", arg))
 	}
