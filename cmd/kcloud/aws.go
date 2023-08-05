@@ -20,6 +20,7 @@ type AWSCmd struct {
 			Cluster []string `arg:"" optional:"" name:"region/cluster"`
 		} `arg:"" name:"region/cluster"`
 	} `arg:""`
+	AllRegions bool `short:"a" help:"Search all knows AWS regions instead of just regions found in ~/.aws/config"`
 }
 
 func (aws *AWSCmd) Run(ctx *kong.Context) error {
@@ -87,20 +88,23 @@ func AWSPrintConfigProfiles(configFile string) error {
 // AWSListClusters lists the clusters available to the given profile in the known regions.
 // runs the 'aws eks list-clusters' command once for each region in parallel
 func (aws *AWSCmd) AWSListClusters() error {
-	awsConfig, err := awsLoadConfig(DefaultAWSConfigFilePath())
-	if err != nil {
-		return fmt.Errorf("ERROR: unable to load AWS config file: %w", err)
+	regions := awsKnownRegions
+	if !aws.AllRegions {
+		awsConfig, err := awsLoadConfig(DefaultAWSConfigFilePath())
+		if err != nil {
+			return fmt.Errorf("ERROR: unable to load AWS config file: %w", err)
+		}
+		regions = awsConfig.regions
 	}
 	clusters := []string{}
 	wg := sync.WaitGroup{}
-	var groupErr error
-	for region := range awsConfig.regions {
+	for region := range regions {
 		wg.Add(1)
 		go func(profile, region string) {
 			defer wg.Done()
 			regionClusters, err := awsListClustersInRegion(profile, region)
 			if err != nil {
-				groupErr = err
+				fmt.Printf("failed to search region '%s': %s", region, err.Error())
 				return
 			}
 			for _, c := range regionClusters {
@@ -109,9 +113,6 @@ func (aws *AWSCmd) AWSListClusters() error {
 		}(aws.Profile.Profile, region)
 	}
 	wg.Wait()
-	if groupErr != nil {
-		return groupErr
-	}
 	for _, c := range clusters {
 		fmt.Println(c)
 	}
@@ -123,7 +124,7 @@ func awsListClustersInRegion(profile string, region string) ([]string, error) {
 	if err != nil {
 		fmt.Print(string(output))
 		fmt.Println("ERROR: failed command: ", QuoteCommand(awsCmd, "--profile", profile, "eks", "--region", region, "list-clusters"))
-		return nil, fmt.Errorf("failed to build aws command: %w", err)
+		return nil, fmt.Errorf("failed to run aws command: %w", err)
 	}
 	return awsParseClusterList(output)
 }
