@@ -29,7 +29,8 @@ func RunCommand(command string, args ...string) ([]byte, error) {
 		fmt.Println("debug: ", QuoteCommand(command, args...))
 	}
 	cmd := exec.Command(command, args...)
-	return cmd.CombinedOutput()
+	cmd.Stderr = os.Stderr
+	return cmd.Output()
 }
 
 // QuoteCommand writes the given command with quotes around the args for convenience
