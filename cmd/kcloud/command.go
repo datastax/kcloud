@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
 // RunCommandAndPrint runs the given command and prints the output
 func RunCommandAndPrint(command string, args ...string) error {
 	if cli.Verbose {
-		fmt.Println("debug: ", QuoteCommand(command, args...))
+		fmt.Println("[debug] ", QuoteCommand(command, args...))
 	}
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = os.Stdout
@@ -26,18 +27,18 @@ func RunCommandAndPrint(command string, args ...string) error {
 // combined stdout/stderr output
 func RunCommand(command string, args ...string) ([]byte, error) {
 	if cli.Verbose {
-		fmt.Println("debug: ", QuoteCommand(command, args...))
+		fmt.Println("[debug] ", QuoteCommand(command, args...))
 	}
 	cmd := exec.Command(command, args...)
 	cmd.Stderr = os.Stderr
 	return cmd.Output()
 }
 
-// QuoteCommand writes the given command with quotes around the args for convenience
+// QuoteCommand concatenates the command and args with quotes around the args to avoid whitespace issues.
 func QuoteCommand(command string, args ...string) string {
-	var sb strings.Builder
+	var quotedArgs strings.Builder
 	for _, arg := range args {
-		sb.WriteString(fmt.Sprintf(" \"%s\"", arg))
+		quotedArgs.WriteString((" " + strconv.Quote(arg)))
 	}
-	return sb.String()
+	return command + quotedArgs.String()
 }

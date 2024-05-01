@@ -52,9 +52,9 @@ func AzureListClusters(stdout, stderr io.Writer, subscription string) error {
 		return err
 	}
 	if cli.Verbose {
-		fmt.Println("debug: raw command output")
+		fmt.Println("[debug] raw command output")
 		fmt.Print(string(output))
-		fmt.Println("debug: end raw command output")
+		fmt.Println("[debug] end raw command output")
 	}
 	clusterList := []azureCluster{}
 	if err := json.Unmarshal(output, &clusterList); err != nil {
