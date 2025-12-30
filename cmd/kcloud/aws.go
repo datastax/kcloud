@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -109,6 +110,8 @@ func AWSPrintConfigProfiles(configFile string) error {
 		return fmt.Errorf("unable to parse AWS config file: %w", err)
 	}
 	for _, profile := range config.profiles {
+		// Strip "profile " prefix if present for consistency with AWS CLI
+		profile = strings.TrimPrefix(profile, "profile ")
 		fmt.Println(profile)
 	}
 	return nil
@@ -148,6 +151,7 @@ func (aws *AWSCmd) AWSListClusters() error {
 		}(aws.Profile.Profile, region)
 	}
 	wg.Wait()
+	sort.Strings(clusters)
 	for _, c := range clusters {
 		fmt.Println(c)
 	}
@@ -213,10 +217,13 @@ func awsLoadConfig(configFile string) (*awsConfig, error) {
 		line := scanner.Text()
 		if match := awsProfileRegex.FindStringSubmatch(line); len(match) > 1 {
 			profile := strings.TrimSpace(match[1])
-			if stringInSlice(profile, awsConfig.profiles) {
-				return nil, fmt.Errorf("invalid aws config, found duplicate profile '%v'", profile)
+			// Normalize profile name by stripping "profile " prefix
+			// AWS config uses [default] and [profile name] formats
+			normalizedProfile := strings.TrimPrefix(profile, "profile ")
+			if stringInSlice(normalizedProfile, awsConfig.profiles) {
+				return nil, fmt.Errorf("invalid aws config, found duplicate profile '%v'", normalizedProfile)
 			}
-			awsConfig.profiles = append(awsConfig.profiles, profile)
+			awsConfig.profiles = append(awsConfig.profiles, normalizedProfile)
 		}
 		if match := awsRegionRegex.FindStringSubmatch(line); len(match) > 1 {
 			region := strings.TrimSpace(match[1])
@@ -225,6 +232,9 @@ func awsLoadConfig(configFile string) (*awsConfig, error) {
 			}
 			awsConfig.regions[region] = struct{}{}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
 	return &awsConfig, nil
 }
