@@ -49,31 +49,55 @@ func (aws *AWSCmd) Run(ctx *kong.Context) error {
 
 // awsKnownRegions as defined in the AWS docs
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+// Last updated: December 2024
 var awsKnownRegions = map[string]struct{}{
-	"us-east-2":      {},
-	"us-east-1":      {},
-	"us-west-1":      {},
-	"us-west-2":      {},
-	"af-south-1":     {},
-	"ap-east-1":      {},
-	"ap-southeast-3": {},
-	"ap-south-1":     {},
-	"ap-northeast-3": {},
-	"ap-northeast-2": {},
-	"ap-southeast-1": {},
-	"ap-southeast-2": {},
-	"ap-northeast-1": {},
-	"ca-central-1":   {},
-	"eu-central-1":   {},
-	"eu-west-1":      {},
-	"eu-west-2":      {},
-	"eu-south-1":     {},
-	"eu-west-3":      {},
-	"eu-north-1":     {},
-	"me-south-1":     {},
-	"sa-east-1":      {},
-	"us-gov-east-1":  {},
-	"us-gov-west-1":  {},
+	// US Regions
+	"us-east-2": {}, // Ohio
+	"us-east-1": {}, // N. Virginia
+	"us-west-1": {}, // N. California
+	"us-west-2": {}, // Oregon
+
+	// Africa
+	"af-south-1": {}, // Cape Town
+
+	// Asia Pacific
+	"ap-east-1":      {}, // Hong Kong
+	"ap-south-1":     {}, // Mumbai
+	"ap-south-2":     {}, // Hyderabad
+	"ap-southeast-1": {}, // Singapore
+	"ap-southeast-2": {}, // Sydney
+	"ap-southeast-3": {}, // Jakarta
+	"ap-southeast-4": {}, // Melbourne
+	"ap-southeast-5": {}, // Malaysia
+	"ap-northeast-1": {}, // Tokyo
+	"ap-northeast-2": {}, // Seoul
+	"ap-northeast-3": {}, // Osaka
+
+	// Canada
+	"ca-central-1": {}, // Central
+	"ca-west-1":    {}, // Calgary
+
+	// Europe
+	"eu-central-1": {}, // Frankfurt
+	"eu-central-2": {}, // Zurich
+	"eu-west-1":    {}, // Ireland
+	"eu-west-2":    {}, // London
+	"eu-west-3":    {}, // Paris
+	"eu-south-1":   {}, // Milan
+	"eu-south-2":   {}, // Spain
+	"eu-north-1":   {}, // Stockholm
+
+	// Middle East
+	"il-central-1": {}, // Tel Aviv
+	"me-south-1":   {}, // Bahrain
+	"me-central-1": {}, // UAE
+
+	// South America
+	"sa-east-1": {}, // São Paulo
+
+	// AWS GovCloud (US)
+	"us-gov-east-1": {}, // US-East
+	"us-gov-west-1": {}, // US-West
 }
 
 const awsCmd = "aws"
@@ -101,6 +125,7 @@ func (aws *AWSCmd) AWSListClusters() error {
 		}
 		regions = awsConfig.regions
 	}
+	var mu sync.Mutex
 	clusters := []string{}
 	wg := sync.WaitGroup{}
 	for region := range regions {
@@ -112,9 +137,14 @@ func (aws *AWSCmd) AWSListClusters() error {
 				fmt.Printf("error: failed to search region '%s':\n %s\n", region, err.Error())
 				return
 			}
-			for _, c := range regionClusters {
-				clusters = append(clusters, region+clusterNameSep+c)
+			// Prefix each cluster name with region
+			qualifiedClusters := make([]string, len(regionClusters))
+			for i, c := range regionClusters {
+				qualifiedClusters[i] = region + clusterNameSep + c
 			}
+			mu.Lock()
+			clusters = append(clusters, qualifiedClusters...)
+			mu.Unlock()
 		}(aws.Profile.Profile, region)
 	}
 	wg.Wait()

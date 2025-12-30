@@ -16,7 +16,7 @@ func parseQualifierCluster(args []string) (string, string, error) {
 	case 1:
 		parts := strings.SplitN(args[0], clusterNameSep, 2)
 		if len(parts) != 2 {
-			return "", "", fmt.Errorf("invlid cluster specifier '%v', must be in the form region%vclusterName", args[0], clusterNameSep)
+			return "", "", fmt.Errorf("invalid cluster specifier '%v', must be in the form region%vclusterName", args[0], clusterNameSep)
 		}
 		return parts[0], parts[1], nil
 	default:
